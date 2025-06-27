@@ -1,0 +1,263 @@
+{
+  "name": "Expenses",
+  "nodes": [
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "❌ {{ $json.error }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1820,
+        660
+      ],
+      "id": "08c60773-6423-49c8-a123-0e1593d2d367",
+      "name": "Send Error",
+      "webhookId": "af2a1dcd-de4d-46f2-b340-d976f9cce5fd",
+      "credentials": {
+        "telegramApi": {
+          "id": "lPPjFhR17G2IKA1G",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Parse /expense command\nconst args = $json.args || [];\nconst rawMessage = $json.rawMessage || '';\n\n// Parse format: /expense 150 - Cafe\nconst expenseMatch = rawMessage.match(/\\/expense\\s+(\\d+(?:\\.\\d+)?)\\s*-\\s*(.+)/i);\n\nif (!expenseMatch) {\n  return {\n    error: 'Please use format: /expense 150 - Cafe Name'\n  };\n}\n\nconst amount = parseFloat(expenseMatch[1]);\nconst place = expenseMatch[2].trim();\n\n// Simple keyword-based categorization\nconst categorizeExpense = (place) => {\n  const placeLower = place.toLowerCase();\n  const categories = {\n    'food': ['restaurant', 'cafe', 'pizza', 'burger', 'food', 'lunch', 'dinner', 'breakfast'],\n    'transport': ['uber', 'taxi', 'bus', 'train', 'gas', 'fuel', 'parking'],\n    'shopping': ['mall', 'store', 'shop', 'market', 'grocery', 'supermarket'],\n    'entertainment': ['movie', 'cinema', 'theater', 'game', 'bar', 'club'],\n    'utilities': ['electric', 'water', 'internet', 'phone', 'bill']\n  };\n  \n  for (const [category, keywords] of Object.entries(categories)) {\n    if (keywords.some(keyword => placeLower.includes(keyword))) {\n      return category;\n    }\n  }\n  return 'uncategorized';\n};\n\nreturn {\n  expense_amount: amount,\n  place: place,\n  category: categorizeExpense(place),\n  telegram_id: $json.sender_id.toString(),\n  chat_id: $json.chat_id,\n  created_at: new Date().toISOString()\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        760
+      ],
+      "id": "79be43b6-c91a-4241-8a7d-5071535bef2b",
+      "name": "Handle /expense"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "error-condition",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1b0fe53b-792b-4c8a-8539-855839fc1cc8",
+      "name": "Check for Errors",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "insert"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2260,
+        860
+      ],
+      "id": "eb88afb1-0b06-4a0b-be00-4167b998df95",
+      "name": "Create Expense",
+      "credentials": {
+        "supabaseApi": {
+          "id": "vvtFWAb2tRs443nn",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1820,
+        860
+      ],
+      "id": "e5ecff05-8172-4d2c-bb9a-316b8ae760b4",
+      "name": "Find User for Expense",
+      "credentials": {
+        "supabaseApi": {
+          "id": "vvtFWAb2tRs443nn",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "💸 Expense logged: ${{ $json.expense_amount }} at {{ $json.place }}\n📂 Category: {{ $json.category }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2480,
+        860
+      ],
+      "id": "b42a8bd8-345f-4e5a-a4b9-9b9f70c9450f",
+      "name": "Send Expense Logged",
+      "webhookId": "0bcc3a66-5112-4a64-a63f-a959fc93ab74",
+      "credentials": {
+        "telegramApi": {
+          "id": "lPPjFhR17G2IKA1G",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Map expense data for database insertion\nreturn {\n  household_id: $json.household_id, // From user lookup\n  submitted_by: $json.user_id, // From user lookup\n  amount: $json.expense_amount,\n  place: $json.place,\n  category: $json.category,\n  created_at: $json.created_at\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2040,
+        860
+      ],
+      "id": "ca494d1b-be3e-44fe-a852-1ee89367d3e8",
+      "name": "Map Expense Data"
+    },
+    {
+      "parameters": {
+        "content": "## Expenses",
+        "height": 380,
+        "width": 1360,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1300,
+        640
+      ],
+      "typeVersion": 1,
+      "id": "39299ba2-68ce-4ab6-9d32-15be00655826",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "c7ee5396-69bb-4c83-8ffa-da286401d15c",
+      "typeVersion": 1.1,
+      "name": "Start",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        1120,
+        640
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Handle /expense": {
+      "main": [
+        [
+          {
+            "node": "Check for Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Errors": {
+      "main": [
+        [
+          {
+            "node": "Send Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Find User for Expense",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find User for Expense": {
+      "main": [
+        [
+          {
+            "node": "Map Expense Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map Expense Data": {
+      "main": [
+        [
+          {
+            "node": "Create Expense",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Expense": {
+      "main": [
+        [
+          {
+            "node": "Send Expense Logged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Handle /expense",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "57b61788-d959-46d9-811f-6355693bde75",
+  "meta": {
+    "instanceId": "e597aac4d97744f11cbb39b38ea1b4dc29c517e0e63846b1637b12742ed5aafb"
+  },
+  "id": "ypxOuJhg3udzmQ0t",
+  "tags": []
+}

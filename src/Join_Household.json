@@ -1,0 +1,264 @@
+{
+  "name": "Join Household",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Join Household",
+        "height": 380,
+        "width": 1360
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2150,
+        500
+      ],
+      "typeVersion": 1,
+      "id": "c0aeee88-e4f3-41a8-82d6-280eb4b1c81c",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "7fda45da-e49a-416a-8397-e94f8258d7cd",
+      "typeVersion": 1.1,
+      "name": "Start",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        1920,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Parse /joinhousehold command\nconst args = $json.args || [];\nif (args.length < 2) {\n  return {\n    error: 'Please provide join code and your name: /joinhousehold ABC123 MyName'\n  };\n}\n\nconst joinCode = args[0].toUpperCase();\nconst userName = args.slice(1).join(' ');\n\nreturn {\n  join_code: joinCode,\n  user_name: userName,\n  telegram_id: $json.sender_id.toString(),\n  chat_id: $json.chat_id\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        620
+      ],
+      "id": "993c0aa7-08b6-4d50-b509-e26175fe7cec",
+      "name": "Handle /joinhousehold"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "error-condition",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "67a228ed-63e2-4cc6-ba70-a8fd039b6288",
+      "name": "Check for Errors",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "❌ {{ $json.error }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2640,
+        520
+      ],
+      "id": "d9a542ec-6f0d-423f-9089-700a3dbb1b28",
+      "name": "Send Error",
+      "webhookId": "af2a1dcd-de4d-46f2-b340-d976f9cce5fd",
+      "credentials": {
+        "telegramApi": {
+          "id": "lPPjFhR17G2IKA1G",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "households"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        720
+      ],
+      "id": "befcd3b1-15c0-4498-bf50-22a2c03a8846",
+      "name": "Find Household",
+      "credentials": {
+        "supabaseApi": {
+          "id": "vvtFWAb2tRs443nn",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Map user data for database insertion\nreturn {\n  telegram_id: $json.telegram_id,\n  name: $json.user_name,\n  household_id: $json.household_id // This comes from the household lookup\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        720
+      ],
+      "id": "3b0327df-e047-4ee7-9c5a-b60de42682fa",
+      "name": "Map User Data"
+    },
+    {
+      "parameters": {
+        "tableId": "users",
+        "dataToSend": "autoMapInputData"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3080,
+        720
+      ],
+      "id": "64916cea-e834-47c7-8a10-5f01ea9c92ba",
+      "name": "Create User",
+      "credentials": {
+        "supabaseApi": {
+          "id": "vvtFWAb2tRs443nn",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "✅ Welcome {{ $json.user_name }}! You've successfully joined the household.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3300,
+        720
+      ],
+      "id": "44842ab4-b50d-47c6-8e9e-6aece847dd66",
+      "name": "Send User Joined",
+      "webhookId": "75e1b911-4f73-4277-9ccd-667a8c815463",
+      "credentials": {
+        "telegramApi": {
+          "id": "lPPjFhR17G2IKA1G",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Handle /joinhousehold": {
+      "main": [
+        [
+          {
+            "node": "Check for Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Errors": {
+      "main": [
+        [
+          {
+            "node": "Send Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Find Household",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Household": {
+      "main": [
+        [
+          {
+            "node": "Map User Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map User Data": {
+      "main": [
+        [
+          {
+            "node": "Create User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create User": {
+      "main": [
+        [
+          {
+            "node": "Send User Joined",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Handle /joinhousehold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "48f7e45e-8495-4e5a-a901-c67f66e27b66",
+  "meta": {
+    "instanceId": "e597aac4d97744f11cbb39b38ea1b4dc29c517e0e63846b1637b12742ed5aafb"
+  },
+  "id": "g5hwIKRRWRxXU0l0",
+  "tags": []
+}

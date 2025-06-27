@@ -1,0 +1,296 @@
+{
+  "name": "Create Household",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Create Household",
+        "height": 380,
+        "width": 1360
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2420,
+        760
+      ],
+      "typeVersion": 1,
+      "id": "0f57f90a-6f40-470c-9c32-12b13bdafe7e",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "c1f35d3d-c86d-44ce-8b26-edaa258029a6",
+      "typeVersion": 1.1,
+      "name": "Start",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        2200,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Parse /createhousehold command\nconst args = $json.args || [];\nconst householdName = args.join(' ');\n\nif (!householdName) {\n  return {\n    error: 'Please provide a household name: /createhousehold FamilyName'\n  };\n}\n\nreturn {\n  household_name: householdName,\n  chat_id: $json.chat_id,\n  sender_id: $json.sender_id,\n  name: $json.sender_first_name\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2480,
+        880
+      ],
+      "id": "df360cbc-6c28-4273-8269-e980b0da6634",
+      "name": "Handle /createhousehold"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "error-condition",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ae7ee158-afc7-4e03-b43e-a8a64ee19068",
+      "name": "Check for Errors",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2700,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "❌ {{ $json.error }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2920,
+        780
+      ],
+      "id": "ef42f651-4d9a-4594-a830-89b5dbf90aa9",
+      "name": "Send Error",
+      "webhookId": "af2a1dcd-de4d-46f2-b340-d976f9cce5fd",
+      "credentials": {
+        "telegramApi": {
+          "id": "lPPjFhR17G2IKA1G",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Map parsed data to Supabase format for household creation\nreturn {\n  name: $json.household_name,\n  salary_day: 1 // Default salary day\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2920,
+        980
+      ],
+      "id": "64c43fd9-ceaa-4ba8-b4cf-3a23e155faf3",
+      "name": "Map Household Data"
+    },
+    {
+      "parameters": {
+        "tableId": "households",
+        "dataToSend": "autoMapInputData"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3140,
+        980
+      ],
+      "id": "bd011228-468b-4ce4-9194-874aee31d966",
+      "name": "Create Household",
+      "credentials": {
+        "supabaseApi": {
+          "id": "vvtFWAb2tRs443nn",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Handle /createhousehold').item.json.chat_id }}",
+        "text": "=🏠 Household '{{ $('Create Household').item.json.name }}' created successfully!\n|📋 Join Code: {{ $('Create Household').item.json.join_code }}. Share this code with family members so they can join using: /joinhousehold {{ $('Create Household').item.json.join_code }} YourName",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3580,
+        980
+      ],
+      "id": "69167b7f-9d0c-4dc7-a01e-04e300947eaf",
+      "name": "Send Household Created",
+      "webhookId": "46dd41fc-d0cf-495f-b79d-f66b05cf9e4e",
+      "credentials": {
+        "telegramApi": {
+          "id": "lPPjFhR17G2IKA1G",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "users",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "telegram_id",
+              "fieldValue": "={{ $('Handle /createhousehold').item.json.sender_id }}"
+            },
+            {
+              "fieldId": "household_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "name",
+              "fieldValue": "={{ $('Handle /createhousehold').item.json.name }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3360,
+        980
+      ],
+      "id": "b77d45bf-d3ef-4fb2-9107-bf1a907ffa84",
+      "name": "Create User",
+      "credentials": {
+        "supabaseApi": {
+          "id": "vvtFWAb2tRs443nn",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Start": [
+      {
+        "json": {
+          "command": "/createhousehold",
+          "args": [
+            "Eyal",
+            "test"
+          ],
+          "rawMessage": "/createhousehold Eyal test",
+          "chat_id": 1137703437,
+          "sender_id": 1137703437,
+          "sender_first_name": "Eyal"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Handle /createhousehold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle /createhousehold": {
+      "main": [
+        [
+          {
+            "node": "Check for Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Errors": {
+      "main": [
+        [
+          {
+            "node": "Send Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Map Household Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map Household Data": {
+      "main": [
+        [
+          {
+            "node": "Create Household",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Household": {
+      "main": [
+        [
+          {
+            "node": "Create User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create User": {
+      "main": [
+        [
+          {
+            "node": "Send Household Created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ac86e305-4cff-484d-a705-d460ca8da7bb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e597aac4d97744f11cbb39b38ea1b4dc29c517e0e63846b1637b12742ed5aafb"
+  },
+  "id": "AMeUOyjfVDxJ3PSl",
+  "tags": []
+}

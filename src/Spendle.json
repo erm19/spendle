@@ -1,0 +1,617 @@
+{
+  "name": "Spendle",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -140,
+        80
+      ],
+      "id": "4f109881-a115-4aa8-8dc3-43502f863eb5",
+      "name": "Weekly Summary Cron"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "households",
+        "returnAll": true,
+        "filterType": "none"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        80,
+        80
+      ],
+      "id": "68d846d9-1d52-4a2e-bf86-e0b80897fb2a",
+      "name": "Get Households for Summary",
+      "credentials": {
+        "supabaseApi": {
+          "id": "vvtFWAb2tRs443nn",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Calculate date range for past week\nconst now = new Date();\nconst weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);\n\nreturn {\n  household_id: $json.id,\n  household_name: $json.name,\n  week_start: weekAgo.toISOString(),\n  week_end: now.toISOString()\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        80
+      ],
+      "id": "a53164d5-c6bd-4ba6-b5dd-3c2bd66c43b3",
+      "name": "Prepare Weekly Query"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "expenses",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "household_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.household_id }}"
+            },
+            {
+              "keyName": "created_at",
+              "condition": "gt",
+              "keyValue": "={{ $json.week_start }}"
+            },
+            {
+              "keyName": "created_at",
+              "condition": "lte",
+              "keyValue": "={{ $json.week_end }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        480,
+        80
+      ],
+      "id": "ed59d137-d147-4e93-a138-5f9002f55db9",
+      "name": "Get Weekly Expenses",
+      "credentials": {
+        "supabaseApi": {
+          "id": "vvtFWAb2tRs443nn",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Generate weekly summary\nconst expenses = $json.expenses || [];\nconst householdName = $json.household_name;\n\nif (expenses.length === 0) {\n  return {\n    skip: true\n  };\n}\n\n// Calculate totals by category\nconst categoryTotals = {};\nlet totalSpent = 0;\n\nexpenses.forEach(expense => {\n  const category = expense.category || 'uncategorized';\n  categoryTotals[category] = (categoryTotals[category] || 0) + parseFloat(expense.amount);\n  totalSpent += parseFloat(expense.amount);\n});\n\n// Format summary message\nlet summaryText = `📊 Weekly Summary for ${householdName}\\n\\n`;\nsummaryText += `💰 Total Spent: $${totalSpent.toFixed(2)}\\n\\n`;\nsummaryText += `📂 By Category:\\n`;\n\nfor (const [category, amount] of Object.entries(categoryTotals)) {\n  const emoji = {\n    'food': '🍽️',\n    'transport': '🚗',\n    'shopping': '🛒',\n    'entertainment': '🎬',\n    'utilities': '💡'\n  }[category] || '📦';\n  \n  summaryText += `${emoji} ${category}: $${amount.toFixed(2)}\\n`;\n}\n\nreturn {\n  summary_text: summaryText,\n  household_id: $json.household_id\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        80
+      ],
+      "id": "82c2bdbb-cebf-4386-acbc-2e7f9874e597",
+      "name": "Generate Weekly Summary"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "users",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "household_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.household_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        880,
+        80
+      ],
+      "id": "9ad8e057-7e5e-4878-9ca3-e805e9a9045b",
+      "name": "Get Household Users",
+      "credentials": {
+        "supabaseApi": {
+          "id": "vvtFWAb2tRs443nn",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Send summary to each user in the household\nconst users = $json.users || [];\nconst summaryText = $json.summary_text;\n\nreturn users.map(user => ({\n  chat_id: user.telegram_id,\n  text: summaryText\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        80
+      ],
+      "id": "7569339c-d580-45dd-9871-72030a78a515",
+      "name": "Prepare Summary Messages"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1280,
+        80
+      ],
+      "id": "05ecbfcd-892d-47b6-bd7b-397fa8ff8c26",
+      "name": "Send Weekly Summary",
+      "webhookId": "eeb3c527-bfa8-427b-b703-4d61e43af292",
+      "credentials": {
+        "telegramApi": {
+          "id": "lPPjFhR17G2IKA1G",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Weekly Expenses Summary",
+        "height": 300,
+        "width": 1700,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -220,
+        -20
+      ],
+      "typeVersion": 1,
+      "id": "c318f963-ab4b-4c4d-9936-bce626296df0",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "AMeUOyjfVDxJ3PSl",
+          "mode": "list",
+          "cachedResultName": "Create Household"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        380
+      ],
+      "name": "Call Create Household",
+      "id": "1f619257-48e2-4e50-9fa7-6cce30bf7c07"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "g5hwIKRRWRxXU0l0",
+          "mode": "list"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        580
+      ],
+      "name": "Call Join Household",
+      "id": "4f572daa-494e-4b69-a5f8-51a3d3f92207"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "wLbdhdaejtUGg8l4",
+          "mode": "list"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        780
+      ],
+      "name": "Call Set Budget",
+      "id": "50c99402-43cc-48d6-bde2-e281903c2d16"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "ypxOuJhg3udzmQ0t",
+          "mode": "list"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        980
+      ],
+      "name": "Call Expenses",
+      "id": "252d983c-ff7a-4ba1-a22f-0c5a3ace5d04"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/createhousehold",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "d5e30b00-a01e-449c-89e4-467ab3f814bd"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "5c0e13d3-b065-4f09-a975-a17495394d74",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/joinhousehold",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "4403956c-d5a6-4d54-9b28-6e6ed22c550a",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/setbudget",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "72eee626-16b1-4048-ba72-234b3839aab0",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/expense",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "id": "f606a14c-2b9a-4a71-bb28-3600c43d7217",
+      "name": "Route Command",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        440,
+        659
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const message = $json.message?.text || '';\n\nconst parts = message.trim().split(/\\s+/);\nconsole.log(parts)\nconst command = parts[0].toLowerCase();\n\nconst args = parts.slice(1);\n\nreturn {\n  command,\n  args,\n  rawMessage: message,\n  chat_id: $json.message?.chat?.id || null,\n  sender_id: $json.message?.from?.id || null,\n  sender_first_name: $json.message?.from?.first_name || null\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        680
+      ],
+      "id": "b0b0db57-f6dc-4e1e-9eea-df854b4e51db",
+      "name": "Parse Command"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        20,
+        680
+      ],
+      "id": "04751935-3fa9-40f6-9134-8b25619b68cf",
+      "name": "Telegram Trigger",
+      "webhookId": "a028de51-875b-48c2-b281-63492a81436e",
+      "credentials": {
+        "telegramApi": {
+          "id": "lPPjFhR17G2IKA1G",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Telegram Trigger": [
+      {
+        "json": {
+          "update_id": 446136235,
+          "message": {
+            "message_id": 12,
+            "from": {
+              "id": 1137703437,
+              "is_bot": false,
+              "first_name": "Eyal",
+              "language_code": "en"
+            },
+            "chat": {
+              "id": 1137703437,
+              "first_name": "Eyal",
+              "type": "private"
+            },
+            "date": 1750972975,
+            "text": "/createhousehold Eyal test",
+            "entities": [
+              {
+                "offset": 0,
+                "length": 16,
+                "type": "bot_command"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Weekly Summary Cron": {
+      "main": [
+        [
+          {
+            "node": "Get Households for Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Households for Summary": {
+      "main": [
+        [
+          {
+            "node": "Prepare Weekly Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Weekly Query": {
+      "main": [
+        [
+          {
+            "node": "Get Weekly Expenses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Weekly Expenses": {
+      "main": [
+        [
+          {
+            "node": "Generate Weekly Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Weekly Summary": {
+      "main": [
+        [
+          {
+            "node": "Get Household Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Household Users": {
+      "main": [
+        [
+          {
+            "node": "Prepare Summary Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Summary Messages": {
+      "main": [
+        [
+          {
+            "node": "Send Weekly Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Command": {
+      "main": [
+        [
+          {
+            "node": "Call Create Household",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call Join Household",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call Set Budget",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call Expenses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Command": {
+      "main": [
+        [
+          {
+            "node": "Route Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c6863252-8cbc-48b6-a36a-4a3cd3e576de",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e597aac4d97744f11cbb39b38ea1b4dc29c517e0e63846b1637b12742ed5aafb"
+  },
+  "id": "CzTd80dGFE1j3zNi",
+  "tags": []
+}

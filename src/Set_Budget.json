@@ -1,0 +1,270 @@
+{
+  "name": "Set Budget",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Set Budget",
+        "height": 380,
+        "width": 1340,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2280,
+        680
+      ],
+      "typeVersion": 1,
+      "id": "62b3fb37-f307-470d-a1a4-6a9aae4fd832",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "60fa199d-b068-4b93-92cb-6afaf3025fc7",
+      "typeVersion": 1.1,
+      "name": "Start",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        2060,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Parse /setbudget command\nconst args = $json.args || [];\nif (args.length === 0) {\n  return {\n    error: 'Please provide budget amount: /setbudget 5000'\n  };\n}\n\nconst amount = parseFloat(args[0]);\nif (isNaN(amount) || amount <= 0) {\n  return {\n    error: 'Please provide a valid budget amount'\n  };\n}\n\n// Get current month in YYYY-MM format\nconst currentMonth = new Date().toISOString().substring(0, 7);\n\nreturn {\n  budget_amount: amount,\n  month: currentMonth,\n  telegram_id: $json.sender_id.toString(),\n  chat_id: $json.chat_id\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        800
+      ],
+      "id": "f0f7f2ac-1085-4e6f-9756-2d75ae8db502",
+      "name": "Handle /setbudget"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "error-condition",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "46ecb475-2c2d-418b-8872-6357ea4ed359",
+      "name": "Check for Errors",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2540,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "❌ {{ $json.error }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2760,
+        700
+      ],
+      "id": "f195a3d2-7ccf-4999-bc14-7512590a2bf9",
+      "name": "Send Error",
+      "webhookId": "af2a1dcd-de4d-46f2-b340-d976f9cce5fd",
+      "credentials": {
+        "telegramApi": {
+          "id": "lPPjFhR17G2IKA1G",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "users",
+        "filters": {
+          "conditions": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2760,
+        900
+      ],
+      "id": "c9d344f7-8a44-439b-86d2-c338d69e85bf",
+      "name": "Find User",
+      "credentials": {
+        "supabaseApi": {
+          "id": "vvtFWAb2tRs443nn",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Map budget data for database upsert\nreturn {\n  household_id: $json.household_id, // From user lookup\n  month: $json.month,\n  amount: $json.budget_amount\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2980,
+        900
+      ],
+      "id": "a116c4e3-0012-4e7e-a6ce-8a5a678b2e4d",
+      "name": "Map Budget Data"
+    },
+    {
+      "parameters": {
+        "tableId": "budgets",
+        "dataToSend": "autoMapInputData"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3200,
+        900
+      ],
+      "id": "b8befd7f-e7d5-42fa-92d9-b85cef766286",
+      "name": "Upsert Budget",
+      "credentials": {
+        "supabaseApi": {
+          "id": "vvtFWAb2tRs443nn",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "💰 Budget set to ${{ $json.budget_amount }} for {{ $json.month }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3420,
+        900
+      ],
+      "id": "004c8534-ddde-428f-bc3b-873dba6b7535",
+      "name": "Send Budget Set",
+      "webhookId": "559b7152-65f5-4fe0-b806-f2e8e1589f8c",
+      "credentials": {
+        "telegramApi": {
+          "id": "lPPjFhR17G2IKA1G",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Handle /setbudget",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle /setbudget": {
+      "main": [
+        [
+          {
+            "node": "Check for Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Errors": {
+      "main": [
+        [
+          {
+            "node": "Send Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Find User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find User": {
+      "main": [
+        [
+          {
+            "node": "Map Budget Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map Budget Data": {
+      "main": [
+        [
+          {
+            "node": "Upsert Budget",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Budget": {
+      "main": [
+        [
+          {
+            "node": "Send Budget Set",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "56599e26-06fa-4733-9863-9eb111a5d9bd",
+  "meta": {
+    "instanceId": "e597aac4d97744f11cbb39b38ea1b4dc29c517e0e63846b1637b12742ed5aafb"
+  },
+  "id": "wLbdhdaejtUGg8l4",
+  "tags": []
+}
