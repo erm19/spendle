@@ -8,7 +8,7 @@ Launch a minimal viable expense-tracking system using n8n workflows and Supabase
 - **Bot Commands** over Telegram:
   - `/createhousehold <Name>` → generate a household and join code
   - `/joinhousehold <Code> <Name>` → add user to household
-  - `<amount> - <place>` (no slash) → log an expense
+  - `/expense <amount> - <place>` → log an expense
   - `/setbudget <amount>` → set current month’s budget
 - **Automations**:
   - Daily Cron: seed new monthly budget record in Supabase
@@ -30,7 +30,7 @@ Launch a minimal viable expense-tracking system using n8n workflows and Supabase
 2. **Second user** sends `/joinhousehold <code> MyName` → n8n looks up `households`, inserts into `users` table.
 
 ### 3.2 Log Expense
-- In group or 1:1 chat, user sends `150 - Cafe`. n8n parses `amount` and `place`, applies keyword lookup for category (or tags as "Uncategorized"), and inserts into `expenses` with timestamps and `user_id`.
+- In group or 1:1 chat, user sends `/expense 150 - Cafe`. n8n parses `amount` and `place`, applies keyword lookup for category (or tags as "Uncategorized"), and inserts into `expenses` with timestamps and `user_id`.
 
 ### 3.3 Set Monthly Budget
 - User sends `/setbudget 5000`. n8n upserts a row in `budgets` for the current month and `household_id`.
@@ -39,7 +39,7 @@ Launch a minimal viable expense-tracking system using n8n workflows and Supabase
 - Every Sunday at 18:00, a Cron node triggers:
   1. Query Supabase for this household’s expenses in the past 7 days
   2. Sum totals and group by category
-  3. Post a summary message to the corresponding Telegram chat via Green API/Twilio
+  3. Post a summary message to the corresponding Telegram chat
 
 ## 4. Supabase Schema
 ```sql
@@ -82,7 +82,7 @@ CREATE TABLE budgets (
 
 ## 5. n8n Workflow Components
 1. **Webhook Trigger** for Telegram messages  
-2. **Command Switch**: route `/createhousehold`, `/joinhousehold`, `/setbudget`, or expense messages  
+2. **Command Switch**: route `/createhousehold`, `/joinhousehold`, `/setbudget`, or `/expense` messages  
 3. **Function Nodes**: parse text payloads and implement keyword categorization  
 4. **Supabase Nodes**: insert/select/upsert for households, users, expenses, budgets  
 5. **Cron Nodes**:  
